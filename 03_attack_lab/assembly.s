@@ -1,0 +1,4 @@
+pushq $0x0
+subq $0x8, %rsp
+movq $0x39623935,(%rsp)
+movq $0x61663739,4(%rsp)
