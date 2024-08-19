@@ -87,7 +87,7 @@
   401a24:	c3                   	ret    
 
 0000000000401a25 <addval_187>:
-  401a25:	8d 87 89 ce 38 c0    	lea    -0x3fc73177(%rdi),%eax
+  401a25:	8d 87 89 ce 38 c0    	lea    -0x3fc73177(%rdi),%eax // todo mov esx esi
   401a2b:	c3                   	ret    
 
 0000000000401a2c <setval_248>:
@@ -95,7 +95,7 @@
   401a32:	c3                   	ret    
 
 0000000000401a33 <getval_159>:
-  401a33:	b8 89 d1 38 c9       	mov    $0xc938d189,%eax
+  401a33:	b8 89 d1 38 c9       	mov    $0xc938d189,%eax // todo mov edx ecx
   401a38:	c3                   	ret    
 
 0000000000401a39 <addval_110>:
@@ -103,7 +103,7 @@
   401a3f:	c3                   	ret    
 
 0000000000401a40 <addval_487>:
-  401a40:	8d 87 89 c2 84 c0    	lea    -0x3f7b3d77(%rdi),%eax
+  401a40:	8d 87 89 c2 84 c0    	lea    -0x3f7b3d77(%rdi),%eax // todo mov eax edx
   401a46:	c3                   	ret    
 
 0000000000401a47 <addval_201>:
@@ -127,7 +127,7 @@
   401a67:	c3                   	ret    
 
 0000000000401a68 <getval_311>:
-  401a68:	b8 89 d1 08 db       	mov    $0xdb08d189,%eax
+  401a68:	b8 89 d1 08 db       	mov    $0xdb08d189,%eax // todo movl edx eax
   401a6d:	c3                   	ret    
 
 0000000000401a6e <setval_167>:
@@ -167,7 +167,7 @@
   401aaa:	c3                   	ret    
 
 0000000000401aab <setval_350>:
-  401aab:	c7 07 48 89 e0 90    	movl   $0x90e08948,(%rdi) // mov rsp rax
+  401aab:	c7 07 48 89 e0 90    	movl   $0x90e08948,(%rdi) // todo mov rsp rax
   401ab1:	c3                   	ret    
 
 0000000000401ab2 <end_farm>:
