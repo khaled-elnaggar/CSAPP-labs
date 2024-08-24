@@ -18,21 +18,91 @@ ncopy:
 	# Loop header
 	xorq %rax,%rax		# count = 0;
 	andq %rdx,%rdx		# len <= 0?
-	jle Done		# if so, goto Done:
-
-Loop:	mrmovq (%rdi), %r10	# read val from src...
+	jmp Test		      # 
+Loop:	
+	mrmovq (%rdi), %r10	# read val from src...
 	rmmovq %r10, (%rsi)	# ...and store it to dst
 	andq %r10, %r10		# val <= 0?
-	jle Npos		# if so, goto Npos:
-	irmovq $1, %r10
-	addq %r10, %rax		# count++
-Npos:	irmovq $1, %r10
-	subq %r10, %rdx		# len--
-	irmovq $8, %r10
-	addq %r10, %rdi		# src++
-	addq %r10, %rsi		# dst++
-	andq %rdx,%rdx		# len > 0?
+	jle Roll1check		      # if so, goto Npos:
+	iaddq $1, %rax		# count++
+Roll1check:
+	iaddq $-1, %rdx		# len--
+	jg Roll2start
+	ret
+Roll2start:
+	mrmovq 8(%rdi), %r10	# read val from src...
+	rmmovq %r10, 8(%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Roll2check		      # if so, goto Npos:
+	iaddq $1, %rax		# count++
+Roll2check:
+	iaddq $-1, %rdx		# len--
+	jg Roll3start
+	ret
+Roll3start:
+	mrmovq 16(%rdi), %r10	# read val from src...
+	rmmovq %r10, 16(%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Roll3check    # if so, goto Npos:
+	iaddq $1, %rax		# count++
+Roll3check:
+	iaddq $-1, %rdx		# len--
+	jg Roll4start
+	ret
+Roll4start:
+	mrmovq 24(%rdi), %r10	# read val from src...
+	rmmovq %r10, 24(%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Roll4check		      # if so, goto Npos:
+	iaddq $1, %rax		# count++
+Roll4check:
+	iaddq $-1, %rdx		# len--
+	jg Roll5start
+	ret
+Roll5start:
+	mrmovq 32(%rdi), %r10	# read val from src...
+	rmmovq %r10, 32(%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Roll5check		      # if so, goto Npos:
+	iaddq $1, %rax		# count++
+Roll5check:
+	iaddq $-1, %rdx		# len--
+	jg Roll6start
+	ret
+Roll6start:
+	mrmovq 40(%rdi), %r10	# read val from src...
+	rmmovq %r10, 40(%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Roll6check		      # if so, goto Npos:
+	iaddq $1, %rax		# count++
+Roll6check:
+	iaddq $-1, %rdx		# len--
+	jg Roll7start
+	ret
+Roll7start:
+	mrmovq 48(%rdi), %r10	# read val from src...
+	rmmovq %r10, 48(%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Roll7check		      # if so, goto Npos:
+	iaddq $1, %rax		# count++
+Roll7check:
+	iaddq $-1, %rdx		# len--
+	jg Roll8start
+	ret
+Roll8start:
+	mrmovq 56(%rdi), %r10	# read val from src...
+	rmmovq %r10, 56(%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Npos		      # if so, goto Npos:
+	iaddq $1, %rax		# count++
+
+Npos:	
+	iaddq $64, %rdi		# src++
+	iaddq $64, %rsi		# dst++
+	iaddq $-1, %rdx		# len--
+Test:
 	jg Loop			# if so, goto Loop:
+
 ##################################################################
 # Do not modify the following section of code
 # Function epilogue.

@@ -1,0 +1,103 @@
+                            | #/* $begin ncopy-ys */
+                            | ##################################################################
+                            | # ncopy.ys - Copy a src block of len words to dst.
+                            | # Return the number of positive words (>0) contained in src.
+                            | #
+                            | # Include your name and ID here.
+                            | #
+                            | # Describe how and why you modified the baseline code.
+                            | #
+                            | ##################################################################
+                            | # Do not modify this portion
+                            | # Function prologue.
+                            | # %rdi = src, %rsi = dst, %rdx = len
+0x000:                      | ncopy:
+                            | 
+                            | ##################################################################
+                            | # You can modify this portion
+                            | 	# Loop header
+0x000: 6300                 | 	xorq %rax,%rax		# count = 0;
+0x002: c0f2f8ffffffffffffff | 	iaddq $-8,%rdx		# if len < 8, then goto LessThan8Loop
+0x00c: 728401000000000000   | 	jl Remain	# 
+                            | 
+0x015:                      | MoreThan8Loop:
+0x015: 50a70000000000000000 | 	mrmovq (%rdi), %r10	# read val from src...
+0x01f: 40a60000000000000000 | 	rmmovq %r10, (%rsi)	# ...and store it to dst
+0x029: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x02b: 713e00000000000000   | 	jle Npos1		      # if so, goto Npos:
+0x034: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+0x03e:                      | Npos1:
+0x03e: 50a70800000000000000 | 	mrmovq 8(%rdi), %r10	# read val from src...
+0x048: 40a60800000000000000 | 	rmmovq %r10, 8(%rsi)	# ...and store it to dst
+0x052: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x054: 716700000000000000   | 	jle Npos2		      # if so, goto Npos:
+0x05d: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+0x067:                      | Npos2:
+0x067: 50a71000000000000000 | 	mrmovq 16(%rdi), %r10	# read val from src...
+0x071: 40a61000000000000000 | 	rmmovq %r10, 16(%rsi)	# ...and store it to dst
+0x07b: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x07d: 719000000000000000   | 	jle Npos3		      # if so, goto Npos:
+0x086: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+0x090:                      | Npos3:
+0x090: 50a71800000000000000 | 	mrmovq 24(%rdi), %r10	# read val from src...
+0x09a: 40a61800000000000000 | 	rmmovq %r10, 24(%rsi)	# ...and store it to dst
+0x0a4: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x0a6: 71b900000000000000   | 	jle Npos4 	      # if so, goto Npos:
+0x0af: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+0x0b9:                      | Npos4:
+0x0b9: 50a72000000000000000 | 	mrmovq 32(%rdi), %r10	# read val from src...
+0x0c3: 40a62000000000000000 | 	rmmovq %r10, 32(%rsi)	# ...and store it to dst
+0x0cd: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x0cf: 71e200000000000000   | 	jle Npos5		      # if so, goto Npos:
+0x0d8: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+0x0e2:                      | Npos5:
+0x0e2: 50a72800000000000000 | 	mrmovq 40(%rdi), %r10	# read val from src...
+0x0ec: 40a62800000000000000 | 	rmmovq %r10, 40(%rsi)	# ...and store it to dst
+0x0f6: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x0f8: 710b01000000000000   | 	jle Npos6		      # if so, goto Npos:
+0x101: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+0x10b:                      | Npos6:
+0x10b: 50a73000000000000000 | 	mrmovq 48(%rdi), %r10	# read val from src...
+0x115: 40a63000000000000000 | 	rmmovq %r10, 48(%rsi)	# ...and store it to dst
+0x11f: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x121: 713401000000000000   | 	jle Npos7		      # if so, goto Npos:
+0x12a: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+0x134:                      | Npos7:
+0x134: 50a73800000000000000 | 	mrmovq 56(%rdi), %r10	# read val from src...
+0x13e: 40a63800000000000000 | 	rmmovq %r10, 56(%rsi)	# ...and store it to dst
+0x148: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x14a: 715d01000000000000   | 	jle MoreThan8Inc		      # if so, goto Npos:
+0x153: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+                            | 
+0x15d:                      | MoreThan8Inc:	
+0x15d: c0f74000000000000000 | 	iaddq $64, %rdi		# src++
+0x167: c0f64000000000000000 | 	iaddq $64, %rsi		# dst++
+0x171: c0f2f8ffffffffffffff | 	iaddq $-8, %rdx
+0x17b:                      | LessThan8Test:
+0x17b: 751500000000000000   | 	jge MoreThan8Loop			# if so, goto Loop:
+                            | 
+0x184:                      | Remain:
+0x184: c0f20800000000000000 | 	iaddq $8, %rdx		# dst++
+0x18e:                      | LessThan8Loop:
+0x18e: 6222                 | 	andq %rdx, %rdx
+0x190: 71e901000000000000   | 	jle Done
+0x199: 50a70000000000000000 | 	mrmovq (%rdi), %r10	# read val from src...
+0x1a3: 40a60000000000000000 | 	rmmovq %r10, (%rsi)	# ...and store it to dst
+0x1ad: 62aa                 | 	andq %r10, %r10		# val <= 0?
+0x1af: 71c201000000000000   | 	jle LessThan8Npos		      # if so, goto Npos:
+0x1b8: c0f00100000000000000 | 	iaddq $1, %rax		# count++
+0x1c2:                      | LessThan8Npos:	
+0x1c2: c0f70800000000000000 | 	iaddq $8, %rdi		# src++
+0x1cc: c0f60800000000000000 | 	iaddq $8, %rsi		# dst++
+0x1d6: c0f2ffffffffffffffff | 	iaddq $-1, %rdx		# len--
+0x1e0: 708e01000000000000   | 	jmp LessThan8Loop
+                            | 
+                            | ##################################################################
+                            | # Do not modify the following section of code
+                            | # Function epilogue.
+0x1e9:                      | Done:
+0x1e9: 90                   | 	ret
+                            | ##################################################################
+                            | # Keep the following label at the end of your function
+0x1ea:                      | End:
+                            | #/* $end ncopy-ys */
