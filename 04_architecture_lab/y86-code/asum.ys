@@ -18,8 +18,9 @@ main:	irmovq array,%rdi
 
 # long sum(long *start, long count)
 # start in %rdi, count in %rsi
-sum:	irmovq $8,%r8        # Constant 8
-	irmovq $1,%r9	     # Constant 1
+sum:	
+  irmovq $8,%r8        # Constant 8
+	irmovq $1,%r9	       # Constant 1
 	xorq %rax,%rax	     # sum = 0
 	andq %rsi,%rsi	     # Set CC
 	jmp     test         # Goto test

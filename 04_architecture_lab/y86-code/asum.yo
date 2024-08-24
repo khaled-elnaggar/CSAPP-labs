@@ -18,8 +18,9 @@
                             | 
                             | # long sum(long *start, long count)
                             | # start in %rdi, count in %rsi
-0x056: 30f80800000000000000 | sum:	irmovq $8,%r8        # Constant 8
-0x060: 30f90100000000000000 | 	irmovq $1,%r9	     # Constant 1
+0x056:                      | sum:	
+0x056: 30f80800000000000000 |   irmovq $8,%r8        # Constant 8
+0x060: 30f90100000000000000 | 	irmovq $1,%r9	       # Constant 1
 0x06a: 6300                 | 	xorq %rax,%rax	     # sum = 0
 0x06c: 6266                 | 	andq %rsi,%rsi	     # Set CC
 0x06e: 708700000000000000   | 	jmp     test         # Goto test
