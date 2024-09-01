@@ -1,0 +1,8 @@
+{
+  "files.associations": {
+    "stdlib.h": "c",
+    "cachelab.h": "c",
+    "stdio.h": "c",
+    "type_traits": "c"
+  }
+}
