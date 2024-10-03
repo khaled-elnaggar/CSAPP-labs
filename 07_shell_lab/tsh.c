@@ -176,7 +176,6 @@ void eval(char *cmdline)
     }
 
     if (!builtin_cmd(argv)) {
-        //TODO do execve with the stuff!
         if ((pid = fork()) == 0) {
             if(setpgid(0, 0) != 0) {
                 unix_error("setpgid error");
@@ -197,13 +196,7 @@ void eval(char *cmdline)
         }
     } else {
         addjob(jobs, pid, FG, cmdline);
-            
-        int status;
-        if (waitpid(pid, &status, 0) < 0) {
-            unix_error("waitfg: waitpid error");
-        } else {
-            deletejob(jobs, pid);
-        }
+        waitfg(pid);        
     }
     return;
 }
@@ -272,13 +265,14 @@ int parseline(const char *cmdline, char **argv)
 int builtin_cmd(char **argv) 
 {
     if (strcmp("quit", argv[0]) == 0) {
-        //TODO clear jobs before quitting? 
         exit(0);
     } else if (strcmp("jobs", argv[0]) == 0) {
         listjobs(jobs);
         return 1;
+    } else if (strcmp("bg", argv[0]) == 0 || strcmp("fg", argv[0]) == 0) {
+        do_bgfg(argv);
+        return 1;
     }
-    //TODO handle cases for fg and bg
 
     return 0;     /* not a builtin command */
 }
@@ -288,6 +282,29 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    struct job_t *job;
+
+    if (argv[1][0] == '%') {
+        int jid = atoi(argv[1] + 1);
+        job = getjobjid(jobs, jid);
+    } else {
+        int pid = atoi(argv[1]);
+        job = getjobpid(jobs, pid);
+    }
+    
+    
+    if (kill(-1 * job->pid, SIGCONT) == 0) {
+        if (strcmp("bg", argv[0]) == 0) {
+            job->state = BG;
+            printf("[%d] (%d) %s", job->jid, job->pid, job->cmdline);
+        } else {
+            job->state = FG;
+            waitfg(job->pid);
+        }
+
+    } else {
+        perror("error continueing process"); 
+    }
     return;
 }
 
@@ -296,6 +313,13 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    int status;
+    if (waitpid(pid, &status, WUNTRACED) < 0) {
+        unix_error("waitfg: waitpid error");
+    }
+    if (WIFEXITED(status)) {
+        deletejob(jobs, pid);
+    }  
     return;
 }
 
@@ -313,8 +337,10 @@ void waitfg(pid_t pid)
 void sigchld_handler(int sig) 
 {
     int pid, wstatus;
-    while ((pid = waitpid(-1, &wstatus, WNOHANG)) > 0) {
-        deletejob(jobs, pid);
+    while ((pid = waitpid(-1, &wstatus, WNOHANG | WUNTRACED)) > 0) {
+        if (WIFEXITED(wstatus)) {
+            deletejob(jobs, pid);
+        } 
     } 
     return;
 }
@@ -348,6 +374,19 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    pid_t fg_pid = fgpid(jobs);
+    if (fg_pid == 0) {
+        return;
+    }
+
+    if (kill(-1 * fg_pid, SIGTSTP) == 0) {
+        int jid = pid2jid(fg_pid);
+        struct job_t * fg_job = getjobpid(jobs, fg_pid);
+        fg_job->state = ST;
+        printf("Job [%d] (%d) stopped by signal %d\n", jid, fg_pid, sig);
+    } else {
+        perror("forward sigtstp to child");
+    }
     return;
 }
 
