@@ -49,6 +49,8 @@ struct job_t {              /* The job struct */
     char cmdline[MAXLINE];  /* command line */
 };
 struct job_t jobs[MAXJOBS]; /* The job list */
+volatile sig_atomic_t global_pid;
+
 /* End global variables */
 
 
@@ -174,30 +176,43 @@ void eval(char *cmdline)
     if (argv[0] == NULL) {
         return;
     }
-
-    if (!builtin_cmd(argv)) {
-        if ((pid = fork()) == 0) {
-            if(setpgid(0, 0) != 0) {
-                unix_error("setpgid error");
-            }
-
-            if (execve(argv[0], argv, environ) < 0) {
-                printf("%s: Command not found.\n", argv[0]);
-                exit(0);
-            }
-        }
-    } else {
+    
+    sigset_t mask_all, mask_child, prev_mask;
+    sigfillset(&mask_all);
+    sigemptyset(&mask_child);
+    sigaddset(&mask_child, SIGCHLD);
+    
+    
+    if (builtin_cmd(argv)) {
         return;
     }
+    
+    sigprocmask(SIG_BLOCK, &mask_child, &prev_mask);
+    if ((pid = fork()) == 0) {
+        if(setpgid(0, 0) != 0) {
+            unix_error("setpgid error");
+        }
 
+        sigprocmask(SIG_SETMASK, &prev_mask, NULL);
+        if (execve(argv[0], argv, environ) < 0) {
+            printf("%s: Command not found.\n", argv[0]);
+            exit(0);
+        }
+    }
+
+    sigprocmask(SIG_BLOCK, &mask_all, NULL);
     if (bg) {
         if (addjob(jobs, pid, BG, cmdline) == 1) {
-           printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline); 
+            sigprocmask(SIG_SETMASK, &mask_child, NULL);
+            printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline); 
         }
     } else {
         addjob(jobs, pid, FG, cmdline);
+        sigprocmask(SIG_SETMASK, &mask_child, NULL);
         waitfg(pid);        
     }
+
+    sigprocmask(SIG_SETMASK, &prev_mask, NULL);
     return;
 }
 
@@ -283,7 +298,6 @@ int builtin_cmd(char **argv)
 void do_bgfg(char **argv) 
 {
     struct job_t *job;
-
     if (argv[1][0] == '%') {
         int jid = atoi(argv[1] + 1);
         job = getjobjid(jobs, jid);
@@ -313,6 +327,7 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    //printf("[debug] inside waitfg waiting on pid %d\n", pid);
     int status;
     if (waitpid(pid, &status, WUNTRACED) < 0) {
         unix_error("waitfg: waitpid error");
@@ -337,11 +352,13 @@ void waitfg(pid_t pid)
 void sigchld_handler(int sig) 
 {
     int pid, wstatus;
+    //printf("[debug] inside sigchild_handler\n");
     while ((pid = waitpid(-1, &wstatus, WNOHANG | WUNTRACED)) > 0) {
         if (WIFEXITED(wstatus)) {
             deletejob(jobs, pid);
         } 
     } 
+    //printf("[debug] leaving sigchild_handler\n");
     return;
 }
 
@@ -375,18 +392,19 @@ void sigint_handler(int sig)
 void sigtstp_handler(int sig) 
 {
     pid_t fg_pid = fgpid(jobs);
+    //printf("[debug] inside sigtstp_handler, stopping pid %d\n", fg_pid);
     if (fg_pid == 0) {
         return;
     }
-
     if (kill(-1 * fg_pid, SIGTSTP) == 0) {
         int jid = pid2jid(fg_pid);
-        struct job_t * fg_job = getjobpid(jobs, fg_pid);
+        struct job_t *fg_job = getjobpid(jobs, fg_pid);
         fg_job->state = ST;
         printf("Job [%d] (%d) stopped by signal %d\n", jid, fg_pid, sig);
     } else {
         perror("forward sigtstp to child");
     }
+    //printf("[debug] leaving sigtstp_handler\n");
     return;
 }
 
