@@ -5,7 +5,6 @@
  *                  15-213: Introduction to Computer Systems                  *
  *                                                                            *
  *  ************************************************************************  *
- *                  TODO: insert your documentation here. :)                  *
  *                                                                            *
  *  ************************************************************************  *
  *  ** ADVICE FOR STUDENTS. **                                                *
@@ -81,14 +80,14 @@ static const size_t dsize = 2 * wsize;
 // Minimum block size (bytes)
 static const size_t min_block_size = 2 * dsize;
 
-// TODO: explain what chunksize is
+// chuncksize is how much memory we request from sbrk
 // (Must be divisible by dsize)
-static const size_t chunksize = (1 << 12);
+static const size_t chunksize = (1 << 14);
 
-// TODO: explain what alloc_mask is
+// a mask to extract the allocated or free bit
 static const word_t alloc_mask = 0x1;
 
-// TODO: explain what size_mask is
+// a mask to hide the extra information bits and extract size
 static const word_t size_mask = ~(word_t)0xF;
 
 typedef union {
@@ -128,10 +127,23 @@ typedef struct block {
    */
 } block_t;
 
+typedef struct {
+  block_t *prev;
+  block_t *next;
+} link_t;
+
+typedef union {
+  link_t *link;
+  word_t *ptr;
+} node_t;
+
 /* Global variables */
 
 // Pointer to first block
 static block_t *heap_start = NULL;
+// Free block start
+static block_t *first_free_node = NULL;
+static block_t *last_free_node = NULL;
 
 /* Function prototypes for internal helper routines */
 
@@ -140,7 +152,7 @@ bool mm_checkheap(int lineno);
 static block_t *extend_heap(size_t size);
 static block_t *find_fit(size_t asize);
 static block_t *coalesce_block(block_t *block);
-static void split_block(block_t *block, size_t asize);
+static bool split_block(block_t *block, size_t asize);
 
 static size_t max(size_t x, size_t y);
 static size_t round_up(size_t size, size_t n);
@@ -164,11 +176,25 @@ static block_t *find_next(block_t *block);
 static word_t *find_prev_footer(block_t *block);
 static block_t *find_prev(block_t *block);
 
+/* my added functions*/
+
+static void set_last_node(block_t *block);
+static block_t *find_next_free_node(block_t *block);
+static block_t *find_prev_free_node(block_t *block);
+static link_t *header_to_link(block_t *block);
+static void insert_first_node(block_t *block);
+static void print_heap();
+static void initialize_links(block_t *block);
+
 /*
  * <What does this function do?>
+ *      initilizes an empty heap then extends it with a chunck
  * <What are the function's arguments?>
+ *      nothing
  * <What is the function's return value?>
+ *      whether the initialization was successful
  * <Are there any preconditions or postconditions?>
+ *      -
  */
 bool mm_init(void) {
   // Create the initial empty heap
@@ -179,27 +205,33 @@ bool mm_init(void) {
   }
 
   /*
-   * TODO: delete or replace this comment once you've thought about it.
    * Think about why we need a heap prologue and epilogue. Why do
    * they correspond to a block footer and header respectively?
+   *    will making searching the linked list a lot easier
    */
 
   start[0] = pack(0, true); // Heap prologue (block footer)
   start[1] = pack(0, true); // Heap epilogue (block header)
 
+  first_free_node = NULL;
+  last_free_node = NULL;
+
   // Heap starts with first "block header", currently the epilogue
   heap_start = (block_t *)&(start[1]);
-
   // Extend the empty heap with a free block of chunksize bytes
   if (extend_heap(chunksize) == NULL) {
     return false;
   }
 
+  first_free_node = heap_start;
+  last_free_node = heap_start;
+  initialize_links(first_free_node);
   return true;
 }
 
 /*
  * <What does this function do?>
+ *
  * <What are the function's arguments?>
  * <What is the function's return value?>
  * <Are there any preconditions or postconditions?>
@@ -249,11 +281,63 @@ void *malloc(size_t size) {
   write_footer(block, block_size, true);
 
   // Try to split the block if too large
-  split_block(block, asize);
+  bool splitted = split_block(block, asize);
+
+  block_t *prev_free_node = find_prev_free_node(block);
+  block_t *next_free_node = find_next_free_node(block);
+  link_t *curr_free_link = header_to_link(block);
+
+  if (splitted) {
+    // TODO-lab do something here
+    block_t *new_free_node = find_next(block);
+    initialize_links(new_free_node);
+    link_t *new_free_link = header_to_link(new_free_node);
+
+    if (prev_free_node != NULL) {
+      link_t *prev_free_link = header_to_link(prev_free_node);
+      prev_free_link->next = new_free_node;
+      new_free_link->prev = prev_free_node;
+    }
+
+    if (next_free_node != NULL) {
+      link_t *next_free_link = header_to_link(next_free_node);
+      next_free_link->prev = new_free_node;
+      new_free_link->next = next_free_node;
+    }
+
+    if (first_free_node == block) {
+      first_free_node = new_free_node;
+    }
+
+    if (last_free_node == block) {
+      last_free_node = new_free_node;
+    }
+
+  } else {
+    // make prev point to next
+    if (prev_free_node != NULL) {
+      link_t *prev_free_link = header_to_link(prev_free_node);
+      prev_free_link->next = curr_free_link->next;
+    }
+
+    if (next_free_node != NULL) {
+      link_t *next_free_link = header_to_link(next_free_node);
+      next_free_link->prev = curr_free_link->prev;
+    }
+
+    if (first_free_node == block) {
+      first_free_node = curr_free_link->next;
+    }
+
+    if (last_free_node == block) {
+      last_free_node = curr_free_link->prev;
+    }
+  }
 
   bp = header_to_payload(block);
 
   dbg_ensures(mm_checkheap(__LINE__));
+  // dbg_printheap(size, 1, block);
   return bp;
 }
 
@@ -280,15 +364,19 @@ void free(void *bp) {
   write_header(block, size, false);
   write_footer(block, size, false);
 
+  initialize_links(block);
+
+  // dbg_printheap(size, 2, block);
   // Try to coalesce the block with its neighbors
   block = coalesce_block(block);
 
+  // dbg_printheap(get_size(block), 3, block);
   dbg_ensures(mm_checkheap(__LINE__));
 }
 
 /*
  * <What does this function do?>
- * <What are the function's arguments?>
+ *<What are the function's arguments?>
  * <What is the function's return value?>
  * <Are there any preconditions or postconditions?>
  */
@@ -373,10 +461,11 @@ static block_t *extend_heap(size_t size) {
   }
 
   /*
-   * TODO: delete or replace this comment once you've thought about it.
    * Think about what bp represents. Why do we write the new block
    * starting one word BEFORE bp, but with the same size that we
    * originally requested?
+   *    bp is the address of the first byte of the newly allocated memory,
+   *    we do so to override the epilogue and move it the end of the heap.
    */
 
   // Initialize free block header/footer
@@ -384,12 +473,30 @@ static block_t *extend_heap(size_t size) {
   write_header(block, size, false);
   write_footer(block, size, false);
 
+  initialize_links(block);
+
   // Create new epilogue header
   block_t *block_next = find_next(block);
   write_header(block_next, 0, true);
 
   // Coalesce in case the previous block was free
   block = coalesce_block(block);
+
+  // TODO-lab: Update the free list
+  link_t *free_link = header_to_link(block);
+  if (first_free_node == NULL) {
+    first_free_node = block;
+    free_link->prev = NULL;
+  }
+
+  if (last_free_node == NULL) {
+    last_free_node = block;
+    free_link->next = NULL;
+  }
+
+  if (last_free_node != block) {
+    set_last_node(block);
+  }
 
   return block;
 }
@@ -406,11 +513,12 @@ static block_t *coalesce_block(block_t *block) {
   size_t size = get_size(block);
 
   /*
-   * TODO: delete or replace this comment once you've thought about it.
    * Think about how we find the prev and next blocks. What information
    * do we need to have about the heap in order to do this? Why doesn't
    * "bool prev_alloc = get_alloc(block_prev)" work properly?
    */
+
+  // TODO-lab: remember special case when coalescing first or last free node
 
   block_t *block_next = find_next(block);
   block_t *block_prev = find_prev(block);
@@ -418,9 +526,36 @@ static block_t *coalesce_block(block_t *block) {
   bool prev_alloc = extract_alloc(*find_prev_footer(block));
   bool next_alloc = get_alloc(block_next);
 
+  link_t *curr_free_link = header_to_link(block);
+
+  // If can not coalesce, then add just this block to the free list
   if (prev_alloc && next_alloc) // Case 1
   {
-    // Nothing to do
+    if (first_free_node != NULL && block < first_free_node) {
+      insert_first_node(block);
+    } else if (last_free_node != NULL && block > last_free_node) {
+      set_last_node(block);
+    } else {
+      block_t *block_ptr;
+      for (block_ptr = first_free_node; block_ptr != NULL;
+           block_ptr = find_next_free_node(block_ptr)) {
+        link_t *ptr_link = header_to_link(block_ptr);
+        if (ptr_link->next > block) {
+          block_t *next_free_node = ptr_link->next;
+
+          ptr_link->next = block;
+          curr_free_link->prev = block_ptr;
+
+          if (next_free_node != NULL) {
+            link_t *next_free_link = header_to_link(next_free_node);
+            next_free_link->prev = block;
+          }
+
+          curr_free_link->next = next_free_node;
+          break;
+        }
+      }
+    }
   }
 
   else if (prev_alloc && !next_alloc) // Case 2
@@ -428,6 +563,28 @@ static block_t *coalesce_block(block_t *block) {
     size += get_size(block_next);
     write_header(block, size, false);
     write_footer(block, size, false);
+
+    link_t *adjacent_free_link = header_to_link(block_next);
+    if (adjacent_free_link->prev != NULL) {
+      link_t *prev_free_link = header_to_link(adjacent_free_link->prev);
+      prev_free_link->next = block;
+    }
+
+    if (adjacent_free_link->next != NULL) {
+      link_t *next_free_link = header_to_link(adjacent_free_link->next);
+      next_free_link->prev = block;
+    }
+
+    curr_free_link->next = adjacent_free_link->next;
+    curr_free_link->prev = adjacent_free_link->prev;
+
+    if (block_next == last_free_node) {
+      last_free_node = block;
+    }
+
+    if (block_next == first_free_node) {
+      first_free_node = block;
+    }
   }
 
   else if (!prev_alloc && next_alloc) // Case 3
@@ -443,7 +600,24 @@ static block_t *coalesce_block(block_t *block) {
     size += get_size(block_next) + get_size(block_prev);
     write_header(block_prev, size, false);
     write_footer(block_prev, size, false);
+
+    link_t *link_next = header_to_link(block_next);
+    link_t *link_prev = header_to_link(block_prev);
+
+    link_prev->next = link_next->next;
+    if (link_next->next != NULL) {
+      header_to_link(link_next->next)->prev = block_prev;
+    }
+
     block = block_prev;
+
+    if (block_next == last_free_node) {
+      last_free_node = block;
+    }
+
+    if (block_next == first_free_node) {
+      first_free_node = block;
+    }
   }
 
   dbg_ensures(!get_alloc(block));
@@ -457,9 +631,9 @@ static block_t *coalesce_block(block_t *block) {
  * <What is the function's return value?>
  * <Are there any preconditions or postconditions?>
  */
-static void split_block(block_t *block, size_t asize) {
+static bool split_block(block_t *block, size_t asize) {
   dbg_requires(get_alloc(block));
-  /* TODO: Can you write a precondition about the value of asize? */
+  // TODO: special case when splitting first or last free node
 
   size_t block_size = get_size(block);
 
@@ -471,9 +645,15 @@ static void split_block(block_t *block, size_t asize) {
     block_next = find_next(block);
     write_header(block_next, block_size - asize, false);
     write_footer(block_next, block_size - asize, false);
+
+    initialize_links(block_next);
+
+    dbg_ensures(get_alloc(block));
+    return true;
   }
 
   dbg_ensures(get_alloc(block));
+  return false;
 }
 
 /*
@@ -485,7 +665,8 @@ static void split_block(block_t *block, size_t asize) {
 static block_t *find_fit(size_t asize) {
   block_t *block;
 
-  for (block = heap_start; get_size(block) > 0; block = find_next(block)) {
+  for (block = first_free_node; block != NULL;
+       block = find_next_free_node(block)) {
 
     if (!(get_alloc(block)) && (asize <= get_size(block))) {
       return block;
@@ -522,33 +703,92 @@ bool mm_checkheap(int line) {
   // Prologue should be allocated
   location.word_ptr = prologue;
   if (!extract_alloc(*prologue) || extract_size(*prologue) != 0 ||
-      location.addr % dsize != 0)
+      location.addr % dsize != 0) {
+    printf("\n(mm_checkheap) failed because prologue is not allocated, or has "
+           "size > 0 or addr MOD dsize != 0\n");
+    dbg_printheap(0, 0, 0);
     return false;
+  }
   while ((header_size = get_size(header)) > 0) {
     // payload should be aligned to 16
     location.char_ptr = header_to_payload(header);
-    if (location.addr % 16 != 0)
+    if (location.addr % 16 != 0) {
+      printf("\n(mm_checkheap) failed because location.addr MOD 16 != 0\n");
+      dbg_printheap(0, 0, 0);
       return false;
+    }
     // Check if the header size matches with footer size
     footer = header_to_footer(header);
     footer_size = extract_size(*footer);
-    if (header_size != footer_size)
+    if (header_size != footer_size) {
+      printf("\n(mm_checkheap) failed because @%p header_size != footer_size\n",
+             (void *)header);
+      dbg_printheap(0, 0, 0);
       return false;
+    }
     // Check if allocated flags are same
     header_a = get_alloc(header);
     footer_a = extract_alloc(*footer);
-    if (header_a != footer_a)
+    if (header_a != footer_a) {
+      printf("\n(mm_checkheap) failed because allocation flags not the same in "
+             "header and footer\n");
+      dbg_printheap(0, 0, 0);
       return false;
+    }
     // Check no two consecutive free blocks
     prev_footer = find_prev_footer(header);
     prev_footer_a = extract_alloc(*prev_footer);
-    if (!prev_footer_a && !header_a)
+    if (!prev_footer_a && !header_a) {
+      printf("\n(mm_checkheap) failed because two consecutive free blocks "
+             "found\n");
+      dbg_printheap(0, 0, 0);
       return false;
+    }
     header = find_next(header);
   }
   // Epilogue should remain allocated
-  if (!get_alloc(header) || get_size(header) != 0)
+  if (!get_alloc(header) || get_size(header) != 0) {
+    printf("\n(mm_checkheap) failed because epilogue is not allocated, or has "
+           "size > 0\n");
+    dbg_printheap(0, 0, 0);
     return false;
+  }
+
+  // First node should have prev = NULL
+  if (first_free_node != NULL &&
+      header_to_link(first_free_node)->prev != NULL) {
+    printf(
+        "\n(mm_checkheap) failed because @%p first_free_node->prev != NULL \n",
+        first_free_node);
+    dbg_printheap(0, 0, 0);
+    return false;
+  }
+
+  // Last node should have next = NULL
+  if (last_free_node != NULL && header_to_link(last_free_node)->next != NULL) {
+    printf(
+        "\n(mm_checkheap) failed because @%p last_free_node->next != NULL \n",
+        last_free_node);
+    dbg_printheap(0, 0, 0);
+    return false;
+  }
+
+  // Every free list node should have its prev and next correct
+  for (header = first_free_node; header != NULL;
+       header = find_next_free_node(header)) {
+    link_t *header_link = header_to_link(header);
+    if (header_link->next != NULL) {
+      block_t *next_node = header_link->next;
+      link_t *next_link = header_to_link(next_node);
+      if (next_link->prev != header) {
+        printf("\n(mm_checkheap) failed because there is mis-aligned prev and "
+               "next between @%p and @%p\n",
+               header, next_link->prev);
+        dbg_printheap(0, 0, 0);
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -709,4 +949,89 @@ static void *header_to_payload(block_t *block) {
  */
 static word_t *header_to_footer(block_t *block) {
   return (word_t *)(block->payload + get_size(block) - dsize);
+}
+
+static link_t *header_to_link(block_t *block) {
+  node_t node;
+  node.ptr = header_to_payload(block);
+  return node.link;
+}
+/*
+ * In case we extended the heap, malloc'd or splitted the last free node, we
+ * need to update the pointer to the last free node
+ */
+static void set_last_node(block_t *block) {
+  // TODO-lab update assertions
+  link_t *current_node_link = header_to_link(block);
+  current_node_link->prev = last_free_node;
+  current_node_link->next = NULL;
+
+  link_t *last_node_link = header_to_link(last_free_node);
+  last_node_link->next = block;
+
+  last_free_node = block;
+}
+
+static void insert_first_node(block_t *block) {
+  // TODO-lab update assertions
+  link_t *current_node_link = header_to_link(block);
+  current_node_link->next = first_free_node;
+  current_node_link->prev = NULL;
+
+  link_t *first_node_link = header_to_link(first_free_node);
+  first_node_link->prev = block;
+
+  first_free_node = block;
+}
+
+static block_t *find_next_free_node(block_t *block) {
+  // TODO-lab update assertions
+  link_t *node = header_to_link(block);
+  return node->next;
+}
+
+static block_t *find_prev_free_node(block_t *block) {
+  // TODO-lab update assertions
+  link_t *node = header_to_link(block);
+  return node->prev;
+}
+
+static void print_heap(size_t size, int op, void *block_header) {
+  char *action = "allocating";
+  if (op == 2)
+    action = "freeing";
+  if (op == 3)
+    action = "coalescing";
+
+  if (size > 0) {
+    printf("\nheap after %s %zu (0x%zx) bytes @%p\n", action, size, size,
+           block_header);
+  }
+
+  printf("first_free_node = %p\n", (void *)first_free_node);
+  printf("========\n");
+
+  block_t *ptr;
+  for (ptr = heap_start; get_size(ptr) != 0; ptr = find_next(ptr)) {
+    printf("%p: %lx\n", (void *)ptr, *(word_t *)ptr);
+
+    printf("%p: %lx\n", header_to_payload(ptr),
+           *(word_t *)header_to_payload(ptr));
+    if (get_alloc(ptr) == false) {
+      link_t *link = header_to_link(ptr);
+      // printf("%p: %lx\n", link->next, *(word_t *) link->next);
+      printf("%p: %lx\n", (void *)&link->next, (word_t)link->next);
+    }
+    printf("%p: %lx\n", header_to_footer(ptr),
+           *(word_t *)header_to_footer(ptr));
+    printf("========\n");
+  }
+  printf("last_free_node = %p\n", (void *)last_free_node);
+  printf("\n");
+}
+
+static void initialize_links(block_t *block) {
+  link_t *block_link = header_to_link(block);
+  block_link->prev = NULL;
+  block_link->next = NULL;
 }

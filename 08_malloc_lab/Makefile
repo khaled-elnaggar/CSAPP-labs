@@ -9,7 +9,7 @@ LLVM_PATH = /opt/llvm-7.1.0/bin/
 
 # Additional flags used to compile mdriver-dbg
 # You can edit these freely to change how your debug binary compiles.
-COPT_DBG = -Og
+COPT_DBG = -O0
 CFLAGS_DBG = -DDEBUG=1
 
 # Flags used to compile normally
